@@ -1,45 +1,55 @@
+using Random
+
 include("GSLS-SVM.jl")
 
 add_noise = true
-add_model_plot = true
+add_model_plot = false
 add_RMSE_plot = true
-noise_σ = 0.2
-max_sv_num = 10
-γ = 1e+4
+max_sv_num = 8
+models_sv_num = [3, 6, 8]
+models_γ = [4e+3, 3e+4, 1e+5]
+models_σ = [0.6, 0.8, 0.7]
+RMSE_σ = 0.7
+RMSE_γ = 1e+5
 
 function main()
     # Regressor and regressand
     X = LinRange(0, 5.0, 100)
     𝑿 = [[x] for x in X]
     𝒚 = [sinc.(x) for x in X]
-    𝒚 += add_noise * rand(Normal(0, 0.2), length(𝒚))
+    if add_noise
+        Random.seed!(666)
+        𝒚 += rand(Normal(0, 0.1), length(𝒚))
+    end
     𝒚 = transpose(𝒚)
 
     # Trained SVR model
-    function get_SVR_model(𝜷, b, dict_indices)
+    function get_SVR_model(𝒦, 𝜷, b, dict_indices)
         return (x) -> b + sum([𝜷[i] * 𝒦(𝑿[dict_indices[i]], [x])
                                         for i=1:length(dict_indices)])
     end
 
     # Plotting model
     if add_model_plot
-        dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(𝑿, 𝒚, γ, 9)
-        x = 0:0.01:5.0
-        y1 = sinc.(x)
-        f = get_SVR_model(𝜷, b, dict_indices)
-        y2 = f.(x)
-        plot(x, y1, label="theoretical", color="gray", dpi=300)
-        plot!(x, y2, label="empirical", color="black")
-        scatter!(LinRange(0, 5.0, 100), transpose(𝒚),
-                                markersize=2,
-                                markerstrokewidth=0.5,
-                                label="samples",
-                                color="pink")
-        scatter!(LinRange(0, 5.0, 100)[dict_indices], transpose(𝒚)[dict_indices],
-                                markersize=3,
-                                label="support vectors",
-                                color="red")
-        savefig("model.png")
+        for (sv_num, σ, γ) in zip(models_sv_num, models_σ, models_γ)
+            dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
+            x = 0:0.01:5.0
+            y1 = sinc.(x)
+            f = get_SVR_model(kernel_RBF(σ), 𝜷, b, dict_indices)
+            y2 = f.(x)
+            plot(x, y1, label="theoretical", color="gray", dpi=300)
+            plot!(x, y2, label="empirical", color="black")
+            scatter!(LinRange(0, 5.0, 100), transpose(𝒚),
+                                    markersize=2,
+                                    markerstrokewidth=0.5,
+                                    label="samples",
+                                    color="pink")
+            scatter!(LinRange(0, 5.0, 100)[dict_indices], transpose(𝒚)[dict_indices],
+                                    markersize=3,
+                                    label="support vectors",
+                                    color="red")
+            savefig("model$sv_num")
+        end
     end
 
     # Plotting dependency of RMSE from number of support vectors
@@ -47,12 +57,16 @@ function main()
         sv_nums = 1:max_sv_num
         RMSE_vals = []
         for n in sv_nums
-            dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(𝑿, 𝒚, γ, n)
-            f = get_SVR_model(𝜷, b, dict_indices)
+            dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(kernel_RBF(RMSE_σ), 𝑿, 𝒚, RMSE_γ, n)
+            f = get_SVR_model(kernel_RBF(RMSE_σ), 𝜷, b, dict_indices)
             y = f.(transpose(X))
-            push!(RMSE_vals, RMSE(y, 𝒚))
+            push!(RMSE_vals, RMSE(sinc.(0:0.01:5), f.(0:0.01:5)))
         end
-        plot(sv_nums, RMSE_vals, dpi=300, label="RMSE", xticks=1:max_sv_num)
+        plot(sv_nums, RMSE_vals, dpi=300,
+                                label="RMSE",
+                                xticks=1:max_sv_num,
+                                xlabel="sv_num",
+                                ylabel="RMSE")
         savefig("RMSE.png")
     end
 end

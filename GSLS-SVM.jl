@@ -2,20 +2,35 @@ using LinearAlgebra
 using Plots
 using Distributions
 
-@doc """
-    𝒦(𝒙, 𝒙′)
-Kernel function:
+@doc raw"""
+    kernel_RBF(σ)
+Returns Radial Basis Function kernel
     ``𝒦 : ℝ^d × ℝ^d → ℝ``
-
-Symmetric and positive semi-definite by definition.
+defined as:\
+    ``𝒦(𝒙, 𝒙^\prime) = \exp(- \frac{\| 𝒙 - 𝒙^\prime \|}{2σ^2})``
      """
-function 𝒦(𝒙, 𝒙′)
-    # return 𝒙 ⋅ 𝒙′
+function kernel_RBF(σ)
+    if σ == 0
+        throw(DomainError(σ, "Unsatisfied condition: σ ≠ 0"))
+    end
+    return (𝒙, 𝒙′) -> exp(-norm(𝒙 - 𝒙′)^2 / (2 * σ^2))
+end
 
-    # return (𝒙 ⋅ 𝒙′ + 1)^3
-
-    σ = 0.6
-    return exp(-norm(𝒙 - 𝒙′)^2 / (2 * σ^2))
+@doc raw"""
+    kernel_polynomial(n, r)
+Returns Polynomial kernel
+    ``𝒦 : ℝ^d × ℝ^d → ℝ``
+defined as:\
+    ``𝒦(𝒙, 𝒙^\prime) = (𝒙 \cdot 𝒙^\prime + r)^n``
+     """
+function kernel_polynomial(n, r)
+    if n < 1
+        throw(DomainError(n, "Unsatisfied condition: n ⩾ 1"))
+    end
+    if r < 0
+        throw(DomainError(r, "Unsatisfied condition: r ⩾ 0"))
+    end
+    return (𝒙, 𝒙′) -> (𝒙 ⋅ x′ + r)^n
 end
 
 @doc raw"""
@@ -23,11 +38,12 @@ end
 Auxiliary function to build matrix
     ``\mathbf{\mathit{Ω}} ∈ ℝ^{n × n}``
 where ``n`` is the size of a support vectors dictionary represented by
-`dict_indices`\
+`dict_indices` and\
+`𝒦` is a kernel,\
 `𝑿` - dataset,\
-`γ` - regularization parameter
+`γ` - regularization parameter.
     """
-function 𝜴(𝑿, dict_indices, γ)
+function 𝜴(𝒦, 𝑿, dict_indices, γ)
     ℓ = length(𝑿)
     return [(ℓ / 2γ) * 𝒦(𝑿[i], 𝑿[j]) +
             sum([𝒦(𝑿[i], 𝑿[r]) * 𝒦(𝑿[r], 𝑿[j]) for r = 1:ℓ])
@@ -39,9 +55,11 @@ end
 Auxillary function to build column vector
     ``\mathbf{\mathit{Φ}} ∈ ℝ^{n × 1}``
 where ``n`` is the size of a support vectors dictionary represented by
-`dict_indices` and `𝑿` is a dataset.
+`dict_indices` and\
+`𝒦` is a kernel,\
+`𝑿` - dataset.
     """
-function 𝜱(𝑿, dict_indices)
+function 𝜱(𝒦, 𝑿, dict_indices)
     return [sum(map((𝒙) -> 𝒦(𝑿[i], 𝒙), 𝑿)) for i in dict_indices]
 end
 
@@ -50,24 +68,27 @@ end
 Auxillary function to build column vector
     ``\mathbf{\mathit{c}} ∈ ℝ^{n × 1}``
 where ``n`` is the size of a support vectors dictionary represented by
-`dict_indices` and `𝑿` is a dataset.
+`dict_indices` and\
+`𝒦` is a kernel\
+`𝑿` - dataset.
     """
-function 𝒄(𝑿, 𝒚, dict_indices)
+function 𝒄(𝒦, 𝑿, 𝒚, dict_indices)
     return [dot(𝒚, map((𝒙) -> 𝒦(𝑿[i], 𝒙), 𝑿)) for i in dict_indices]
 end
 
 @doc raw"""
-    ℒ(𝑿, 𝒚, 𝜷, b, dict_indices)
+    ℒ(𝒦, 𝑿, 𝒚, 𝜷, b, dict_indices)
 Objective function for GSLS SVM
     ``ℒ : ℝ^n × ℝ → ℝ``
 where ``n`` is the size of support vectors dictionary represented by
-`dict_indices`,\
+`dict_indices` and\
+`𝒦` is a kernel\
 `𝑿` - dataset, list of vectors,\
 `𝒚` - outcomes (for the elements of 𝑿),\
 `𝜷`, `b` - SVM coefficients,\
-`γ` - regularization parameter
+`γ` - regularization parameter.
     """
-function ℒ(𝑿, 𝒚, 𝜷, b, dict_indices, γ)
+function ℒ(𝒦, 𝑿, 𝒚, 𝜷, b, dict_indices, γ)
     dict_length = length(dict_indices)
     sum1 = 0.5sum([𝜷[i] * 𝜷[j] * 𝒦(𝑿[dict_indices[i]], 𝑿[dict_indices[j]])
                 for i = 1:dict_length, j = 1:dict_length])
@@ -93,14 +114,15 @@ function RMSE(y1, y2)
 end
 
 @doc raw"""
-    GSLS_SVM(𝑿, 𝒚, γ, sv_num)
+    GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num)
 Greedy Sparse Least-Squares SVM.
 
 ## Arguments
+`𝒦` - kernel\
 `𝑿` - dataset,\
-`𝒚` - outcomes,
-`γ` - regularization parameter,
-`sv_num` - number of support vectors.\
+`𝒚` - outcomes,\
+`γ` - regularization parameter,\
+`sv_num` - number of support vectors.
 
 ## Output
 `dict_indices` - support vectors indices,\
@@ -110,7 +132,7 @@ Greedy Sparse Least-Squares SVM.
 step of the algorithm to find 𝜷 and b. If ``\det H ≈ 0`` than 𝜷 and b are probably
 incorrect.
     """
-function GSLS_SVM(𝑿, 𝒚, γ, sv_num)
+function GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num)
     ℓ = length(𝑿)
     dict_indices = []
     best_𝜷 = []
@@ -129,9 +151,9 @@ function GSLS_SVM(𝑿, 𝒚, γ, sv_num)
                 continue
             end
             push!(dict_indices, j)
-            Ω = 𝜴(𝑿, dict_indices, γ)
-            Φ = 𝜱(𝑿, dict_indices)
-            c = 𝒄(𝑿, 𝒚, dict_indices)
+            Ω = 𝜴(𝒦, 𝑿, dict_indices, γ)
+            Φ = 𝜱(𝒦, 𝑿, dict_indices)
+            c = 𝒄(𝒦, 𝑿, 𝒚, dict_indices)
 
             local 𝜷
             local b
@@ -161,7 +183,7 @@ function GSLS_SVM(𝑿, 𝒚, γ, sv_num)
 
             𝜷 = solution[1:i]
             b = solution[i+1]
-            current_ℒ = ℒ(𝑿, 𝒚, 𝜷, b, dict_indices, γ)
+            current_ℒ = ℒ(𝒦, 𝑿, 𝒚, 𝜷, b, dict_indices, γ)
             if current_ℒ < best_ℒ
                 best_ℒ = current_ℒ
                 best_𝜷 = copy(𝜷)
@@ -173,8 +195,8 @@ function GSLS_SVM(𝑿, 𝒚, γ, sv_num)
         end
         push!(dict_indices, best_index)
 
-        Ω = 𝜴(𝑿, dict_indices, γ)
-        Φ = 𝜱(𝑿, dict_indices)
+        Ω = 𝜴(𝒦, 𝑿, dict_indices, γ)
+        Φ = 𝜱(𝒦, 𝑿, dict_indices)
         push!(det_H_vals, det([Ω Φ; transpose(Φ) ℓ]))
     end
 
