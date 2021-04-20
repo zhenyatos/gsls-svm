@@ -61,3 +61,21 @@ will minimise GSLS SVM objective function
 
 as much as possible. **γ** is the regularization parameter. At each iteration GSLS chooses some new vector from dataset as support vector, calculates value of the objective function and in a greedy maner, incorporates best possible support vector (on current iteration) to the dictionary, than proceeds to the next iteration. This process is terminated once dictionary has reached some pre-determined size. More detailed description of this simple, but efficient algorithm can be found in [paper](https://www.researchgate.net/publication/221078993_A_Greedy_Training_Algorithm_for_Sparse_Least-Squares_Support_Vector_Machines).
 
+## Usage
+Let's figure out pn how to use GSLS SVM in regression analysis. 
+
+1. Given values `X::Array{Float64,1}` of predictor and outcomes `y::Array{Float64,1}` you have to prepare data to train GSLS SVM like this:
+```julia
+𝑿 = [[x] for x in X]
+𝒚 = transpose(y)
+```
+2. Then you have choose number of support vectors `sv_num::Int`, regularization parameter `γ::Float` and kernel function `kernel` (construct it using higher-order functions `kernel = kernel_RBF(σ)` or `kernel = kernel_polynomial(n, r)`) and pass all this stuff to GSLS SVM algorithm like this:
+```julia
+dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
+```
+3. Finally, you have all you need to build the empirical estimation of the theoretical regression model:
+```julia
+f(x) = b + sum([𝜷[i] * kernel(𝑿[dict_indices[i]], [x])
+                                        for i=1:length(dict_indices)])
+```
+
