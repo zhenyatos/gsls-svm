@@ -1,4 +1,4 @@
-using Random
+using Distributions, Random, Plots
 
 include("GSLS-SVM.jl")
 
