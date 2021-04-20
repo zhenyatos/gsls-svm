@@ -114,7 +114,7 @@ function RMSE(y1, y2)
 end
 
 @doc raw"""
-    GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num)
+    GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num, get_err_info=false)
 Greedy Sparse Least-Squares SVM.
 
 ## Arguments
@@ -122,29 +122,29 @@ Greedy Sparse Least-Squares SVM.
 `𝑿` - dataset,\
 `𝒚` - outcomes,\
 `γ` - regularization parameter,\
-`sv_num` - number of support vectors.
+`sv_num` - number of support vectors,\
+`get_err_info` - set to `true` if you want to get `err_vals` in output.
 
 ## Output
 `dict_indices` - support vectors indices,\
 `best_𝜷` - 𝜷 of constructed SVM,\
 `best_b` - b of constructed SVM,\
-`det_H_vals` - list of determinants of matrix H, which is constructed on each
-step of the algorithm to find 𝜷 and b. If ``\det H ≈ 0`` than 𝜷 and b are probably
-incorrect.
+`err_vals` - list of error values to check that in each step solution of the system of
+linear equations inside algorithm was correct.
     """
-function GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num)
+function GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num, get_err_info=false)
     ℓ = length(𝑿)
     dict_indices = []
     best_𝜷 = []
     best_b = 0
-    best_inv_Ω = []
+    best_inv_H = []
     best_index = 0
-    det_H_vals = Float64[]
+    err_vals = []
 
     for i = 1:sv_num
         best_ℒ = Inf
         if i != 1
-            inv_Ω_old = copy(best_inv_Ω)
+            inv_H_old = copy(best_inv_H)
         end
         for j = 1:ℓ
             if j in dict_indices
@@ -157,48 +157,52 @@ function GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num)
 
             local 𝜷
             local b
-            local inv_Ω
-            local solution
+            local inv_H
+            local rs
+
+            H = [ℓ transpose(Φ); Φ Ω]
             if i == 1
-                H = [Ω Φ; transpose(Φ) ℓ]
-                rs = [c; sum(𝒚)]
-                solution = H \ rs
-                inv_Ω = (1 / Ω[1, 1]) * ones(1, 1)
+                rs = [sum(𝒚); c]
+                inv_H = inv(H)
             else
-                m = size(Ω)[1]
-                𝐛 = Ω[1:m-1, m]
-                inv_k = 1 / (Ω[m, m] - transpose(𝐛) * inv_Ω_old * 𝐛)
-                A = inv_Ω_old + inv_k * inv_Ω_old * 𝐛 * transpose(𝐛) * inv_Ω_old
-                B = -inv_k * inv_Ω_old * 𝐛
-                inv_Ω = [A B; transpose(B) inv_k]
-
-                inv_k = 1 / (ℓ - transpose(Φ) * inv_Ω * Φ)
-                A = inv_Ω + inv_k * inv_Ω * Φ * transpose(Φ) * inv_Ω
-                B = -inv_k * inv_Ω * Φ
-                inv_H = [A B; transpose(B) inv_k]
-
-                rs = [c; sum(𝒚)]
-                solution = inv_H * rs
+                m = size(H)[1]
+                𝐚 = H[1:m-1, m]
+                𝐛 = inv_H_old * 𝐚
+                inv_k = 1 / (H[m, m] - dot(𝐚, 𝐛))
+                A = inv_H_old + inv_k * 𝐛 * 𝐛'
+                B = -inv_k * 𝐛
+                inv_H = [A B; B' inv_k]
+                rs = [sum(𝒚); c]
             end
 
-            𝜷 = solution[1:i]
-            b = solution[i+1]
+            solution = inv_H * rs
+            𝜷 = solution[2:i+1]
+            b = solution[1]
+
             current_ℒ = ℒ(𝒦, 𝑿, 𝒚, 𝜷, b, dict_indices, γ)
             if current_ℒ < best_ℒ
                 best_ℒ = current_ℒ
                 best_𝜷 = copy(𝜷)
                 best_b = b
-                best_inv_Ω = copy(inv_Ω)
+                best_inv_H = copy(inv_H)
                 best_index = j
             end
             pop!(dict_indices)
         end
         push!(dict_indices, best_index)
 
-        Ω = 𝜴(𝒦, 𝑿, dict_indices, γ)
-        Φ = 𝜱(𝒦, 𝑿, dict_indices)
-        push!(det_H_vals, det([Ω Φ; transpose(Φ) ℓ]))
+        if get_err_info
+            Ω = 𝜴(𝒦, 𝑿, dict_indices, γ)
+            Φ = 𝜱(𝒦, 𝑿, dict_indices)
+            c = 𝒄(𝒦, 𝑿, 𝒚, dict_indices)
+            err = norm([Ω Φ; transpose(Φ) ℓ] * [best_b; best_𝜷] - [sum(𝒚); c])
+            push!(err_vals, err)
+        end
     end
 
-    return dict_indices, best_𝜷, best_b, det_H_vals
+    if get_err_info
+        return dict_indices, best_𝜷, best_b, err_vals
+    else
+        return dict_indices, best_𝜷, best_b
+    end
 end

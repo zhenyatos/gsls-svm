@@ -3,10 +3,10 @@ using Random
 include("GSLS-SVM.jl")
 
 add_noise = true
-add_model_plot = false
+add_model_plot = true
 add_RMSE_plot = true
-max_sv_num = 8
-models_sv_num = [3, 6, 8]
+max_sv_num = 12
+models_sv_num = [3, 6, 7]
 models_γ = [4e+3, 3e+4, 1e+5]
 models_σ = [0.6, 0.8, 0.7]
 RMSE_σ = 0.7
@@ -14,7 +14,7 @@ RMSE_γ = 1e+5
 
 function main()
     # Regressor and regressand
-    X = LinRange(0, 5.0, 100)
+    X = LinRange(0, 5.0, 200)
     𝑿 = [[x] for x in X]
     𝒚 = [sinc.(x) for x in X]
     if add_noise
@@ -32,19 +32,19 @@ function main()
     # Plotting model
     if add_model_plot
         for (sv_num, σ, γ) in zip(models_sv_num, models_σ, models_γ)
-            dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
+            dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
             x = 0:0.01:5.0
             y1 = sinc.(x)
             f = get_SVR_model(kernel_RBF(σ), 𝜷, b, dict_indices)
             y2 = f.(x)
             plot(x, y1, label="theoretical", color="gray", dpi=300)
             plot!(x, y2, label="empirical", color="black")
-            scatter!(LinRange(0, 5.0, 100), transpose(𝒚),
+            scatter!(X, transpose(𝒚),
                                     markersize=2,
                                     markerstrokewidth=0.5,
                                     label="samples",
                                     color="pink")
-            scatter!(LinRange(0, 5.0, 100)[dict_indices], transpose(𝒚)[dict_indices],
+            scatter!(X[dict_indices], transpose(𝒚)[dict_indices],
                                     markersize=3,
                                     label="support vectors",
                                     color="red")
@@ -57,10 +57,11 @@ function main()
         sv_nums = 1:max_sv_num
         RMSE_vals = []
         for n in sv_nums
-            dict_indices, 𝜷, b, det_H_vals = GSLS_SVM(kernel_RBF(RMSE_σ), 𝑿, 𝒚, RMSE_γ, n)
+            x = 0:0.01:5.0
+            dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(RMSE_σ), 𝑿, 𝒚, RMSE_γ, n)
             f = get_SVR_model(kernel_RBF(RMSE_σ), 𝜷, b, dict_indices)
             y = f.(transpose(X))
-            push!(RMSE_vals, RMSE(sinc.(0:0.01:5), f.(0:0.01:5)))
+            push!(RMSE_vals, RMSE(sinc.(x), f.(x)))
         end
         plot(sv_nums, RMSE_vals, dpi=300,
                                 label="RMSE",
