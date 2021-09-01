@@ -1,6 +1,5 @@
 using Distributions, Random, Plots
-
-include("GSLS-SVM.jl")
+using .MySVM
 
 add_noise = true
 add_model_plot = true
@@ -32,7 +31,7 @@ function main()
     # Plotting model
     if add_model_plot
         for (sv_num, σ, γ) in zip(models_sv_num, models_σ, models_γ)
-            dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
+            dict_indices, 𝜷, b = MySVM.GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
             x = 0:0.01:5.0
             y1 = sinc.(x)
             f = get_SVR_model(kernel_RBF(σ), 𝜷, b, dict_indices)
@@ -58,10 +57,10 @@ function main()
         RMSE_vals = []
         for n in sv_nums
             x = 0:0.01:5.0
-            dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(RMSE_σ), 𝑿, 𝒚, RMSE_γ, n)
-            f = get_SVR_model(kernel_RBF(RMSE_σ), 𝜷, b, dict_indices)
+            dict_indices, 𝜷, b = MySVM.GSLS_SVM(kernel_RBF(RMSE_σ), 𝑿, 𝒚, RMSE_γ, n)
+            f = get_SVR_model(MySVM.kernel_RBF(RMSE_σ), 𝜷, b, dict_indices)
             y = f.(transpose(X))
-            push!(RMSE_vals, RMSE(sinc.(x), f.(x)))
+            push!(RMSE_vals, MySVM.RMSE(sinc.(x), f.(x)))
         end
         plot(sv_nums, RMSE_vals, dpi=300,
                                 label="RMSE",

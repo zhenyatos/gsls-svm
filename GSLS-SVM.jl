@@ -1,6 +1,8 @@
+module MySVM
+
 using LinearAlgebra
-using Plots
-using Distributions
+
+export kernel_RBF, kernel_polynomial, GSLS_SVM, RMSE
 
 @doc raw"""
     kernel_RBF(σ)
@@ -30,7 +32,7 @@ function kernel_polynomial(n, r)
     if r < 0
         throw(DomainError(r, "Unsatisfied condition: r ⩾ 0"))
     end
-    return (𝒙, 𝒙′) -> (𝒙 ⋅ x′ + r)^n
+    return (𝒙, 𝒙′) -> (𝒙 ⋅ 𝒙′ + r)^n
 end
 
 @doc raw"""
@@ -123,7 +125,7 @@ Greedy Sparse Least-Squares SVM.
 `𝒚` - outcomes,\
 `γ` - regularization parameter,\
 `sv_num` - number of support vectors,\
-`get_err_info` - set to `true` if you want to get `err_vals` in output.
+`get_err_info` - set this to `true` if you want to get `err_vals` in the output.
 
 ## Output
 `dict_indices` - support vectors indices,\
@@ -205,4 +207,6 @@ function GSLS_SVM(𝒦, 𝑿, 𝒚, γ, sv_num, get_err_info=false)
     else
         return dict_indices, best_𝜷, best_b
     end
+end
+
 end
