@@ -4,20 +4,16 @@ Greedy Sparse Least-Squares (GSLS) SVM and how to use it in regression analysis.
 ![example](https://user-images.githubusercontent.com/47058532/115428144-c4cbdf00-a20a-11eb-93d4-5cbf84adf1c4.png)
 
 ## Requirements
-You don't need anything to use `GSLS_SVM` function from **GSLS-SVM.jl** 
+There are no requirements for `GSLS_SVM` function from **GSLS-SVM.jl** 
 
 But if you want to test it with **test.jl** you should install:\
 [Plots](http://docs.juliaplots.org/latest/)\
 [Distributions](https://juliastats.org/Distributions.jl/stable/)
 
 ## Launch
-- From Julia REPL:
+From Julia REPL:
 ```julia
 julia> include("main.jl")
-```
-- from command line (not recommended):
-```
-julia main.jl
 ```
 
 ## Description
@@ -64,14 +60,14 @@ as much as possible. **γ** is the regularization parameter. At each iteration G
 ## Usage
 Let's figure out on how to use GSLS SVM in regression analysis. 
 
-1. Given values `X::Array{Float64,1}` of predictor and outcomes `y::Array{Float64,1}` you have to prepare data to train GSLS SVM like this:
+1. Given values `X::Vector{Float64}` of predictor and outcomes `y::Vector{Float64}` you have to prepare data to train GSLS SVM like this:
 ```julia
 𝑿 = [[x] for x in X]
 𝒚 = transpose(y)
 ```
 2. Then you have to choose number of support vectors `sv_num::Int`, regularization parameter `γ::Float` and kernel function `kernel` (construct it using higher-order functions `kernel = kernel_RBF(σ)` or `kernel = kernel_polynomial(n, r)`) and pass all this stuff to GSLS SVM algorithm like this:
 ```julia
-dict_indices, 𝜷, b = GSLS_SVM(kernel_RBF(σ), 𝑿, 𝒚, γ, sv_num)
+dict_indices, 𝜷, b = GSLS_SVM(kernel, 𝑿, 𝒚, γ, sv_num)
 ```
 3. Finally, you have all you need to build the empirical estimation of the theoretical regression model:
 ```julia
